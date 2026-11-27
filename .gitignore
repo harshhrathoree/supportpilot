@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated agent traces (one sample is kept in docs/examples/)
+traces/
