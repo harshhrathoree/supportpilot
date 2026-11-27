@@ -1,6 +1,7 @@
 """FastAPI application: the HTTP interface to the pipeline.
 
 Endpoints:
+  GET  /                                the review screen (a single HTML page)
   GET  /health                          liveness check
   GET  /tickets                         the queue (filter with ?status=)
   GET  /tickets/{id}                    one ticket with its proposal and audit history
@@ -9,9 +10,11 @@ Endpoints:
 """
 
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -104,6 +107,14 @@ def ticket_dict(t: Ticket) -> dict:
 
 
 # --- Routes ---
+
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    """The review screen. It is one HTML file that calls the JSON endpoints below."""
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")

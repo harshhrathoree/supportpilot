@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SupportPilot</title>
+<style>
+  :root { --border: #d0d7de; --muted: #57606a; --bg: #f6f8fa; --accent: #0969da; --bad: #cf222e; --ok: #1a7f37; --warn: #9a6700; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; color: #1f2328; }
+  header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; }
+  .banner { background: #fff8c5; border-bottom: 1px solid #d4a72c; padding: 6px 16px; font-size: 13px; }
+  main { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 90px); }
+  #list { border-right: 1px solid var(--border); overflow-y: auto; max-height: calc(100vh - 90px); }
+  #list .bar { padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+  .item { padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .item:hover { background: var(--bg); }
+  .item.active { background: #ddf4ff; }
+  .item .meta { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+  .item .text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #detail { padding: 16px 20px; max-width: 860px; }
+  .badge { display: inline-block; padding: 0 7px; border-radius: 10px; font-size: 12px; border: 1px solid var(--border); background: #fff; }
+  .badge.awaiting_approval { color: var(--warn); border-color: var(--warn); }
+  .badge.resolved { color: var(--ok); border-color: var(--ok); }
+  .badge.manual_handling { color: var(--bad); border-color: var(--bad); }
+  .card { border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; margin: 12px 0; }
+  .card h3 { margin: 0 0 6px; font-size: 14px; }
+  .ticket-text { white-space: pre-wrap; background: var(--bg); padding: 10px; border-radius: 6px; }
+  .kv { display: grid; grid-template-columns: 170px 1fr; gap: 2px 10px; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .flag { color: var(--bad); }
+  textarea, input, select { font: inherit; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; width: 100%; }
+  textarea { min-height: 90px; }
+  label { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  button { font: inherit; padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  #msg { margin-top: 10px; padding: 8px 10px; border-radius: 6px; display: none; }
+  #msg.error { display: block; background: #ffebe9; color: var(--bad); }
+  #msg.ok { display: block; background: #dafbe1; color: var(--ok); }
+  .muted { color: var(--muted); }
+  ul { margin: 4px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SupportPilot</h1>
+  <span class="muted">AI proposes, code caps it, a human decides.</span>
+</header>
+<div class="banner">Demo build: there is no login. The reviewer name and role you type are <b>not verified</b>, and approving records a decision only. No money moves.</div>
+<main>
+  <section id="list">
+    <div class="bar">
+      <select id="filter">
+        <option value="">All tickets</option>
+        <option value="open">Open (not processed)</option>
+        <option value="awaiting_approval" selected>Awaiting approval</option>
+        <option value="resolved">Resolved</option>
+        <option value="manual_handling">Manual handling</option>
+      </select>
+    </div>
+    <div id="items"></div>
+  </section>
+  <section id="detail"><p class="muted">Pick a ticket on the left.</p></section>
+</main>
+
+<script>
+// Everything that comes from the server is untrusted (ticket text is written by customers).
+// So we only ever put it on the page with textContent, which cannot run scripts.
+const $ = (id) => document.getElementById(id);
+
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (key === "class") node.className = value;
+    else if (key === "onclick") node.onclick = value;
+    else node[key] = value;
+  }
+  for (const child of children.flat()) {
+    if (child === null || child === undefined) continue;
+    node.append(child.nodeType ? child : document.createTextNode(String(child)));
+  }
+  return node;
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    headers: { "content-type": "application/json" },
+    ...options,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    // FastAPI errors: {detail: "text"} or, for invalid input, {detail: [{msg: ...}]}
+    const detail = Array.isArray(body.detail) ? body.detail.map((d) => d.msg).join("; ") : body.detail;
+    throw new Error(detail || "Request failed (" + response.status + ")");
+  }
+  return body;
+}
+
+let selectedId = null;
+
+async function loadList() {
+  const status = $("filter").value;
+  const tickets = await api("/tickets?limit=200" + (status ? "&status=" + status : ""));
+  const box = $("items");
+  box.replaceChildren();
+  if (!tickets.length) box.append(el("p", { class: "muted", style: "padding:12px" }, "No tickets here."));
+  for (const t of tickets) {
+    box.append(
+      el("div", { class: "item" + (t.id === selectedId ? " active" : ""), onclick: () => openTicket(t.id) },
+        el("div", { class: "meta" }, "#" + t.id, el("span", { class: "badge " + t.status }, t.status), t.category || ""),
+        el("div", { class: "text" }, t.text)),
+    );
+  }
+}
+
+function kv(pairs) {
+  const grid = el("div", { class: "kv" });
+  for (const [k, v] of pairs) grid.append(el("div", {}, k), el("div", {}, v === null || v === undefined ? "-" : v));
+  return grid;
+}
+
+function show(kind, text) {
+  const box = $("msg");
+  box.className = kind;
+  box.textContent = text;
+}
+
+async function openTicket(id) {
+  selectedId = id;
+  const data = await api("/tickets/" + id);
+  const { ticket, proposal, audit } = data;
+  const detail = $("detail");
+  detail.replaceChildren(
+    el("h2", {}, "Ticket #" + ticket.id + " ", el("span", { class: "badge " + ticket.status }, ticket.status)),
+    kv([["Customer", ticket.customer_id], ["Order", ticket.order_id], ["Category", ticket.category]]),
+    el("div", { class: "card" }, el("h3", {}, "Customer message"), el("div", { class: "ticket-text" }, ticket.text)),
+  );
+
+  if (!proposal) {
+    const button = el("button", { class: "primary" }, "Run AI on this ticket");
+    button.onclick = async () => {
+      button.disabled = true;
+      button.textContent = "Working... this can take up to a minute";
+      try {
+        await api("/tickets/" + id + "/process", { method: "POST" });
+        await loadList();
+        await openTicket(id);
+      } catch (e) {
+        button.disabled = false;
+        button.textContent = "Run AI on this ticket";
+        show("error", e.message);
+      }
+    };
+    detail.append(button, el("div", { id: "msg" }));
+    return;
+  }
+  detail.append(proposalCard(proposal), decisionCard(proposal), auditCard(audit), el("div", { id: "msg" }));
+}
+
+function proposalCard(p) {
+  return el("div", { class: "card" },
+    el("h3", {}, "AI proposal"),
+    kv([
+      ["Verdict", p.verdict],
+      ["Action", p.action],
+      ["Amount (Rs)", p.amount + "   (model asked " + p.requested_amount + ", policy ceiling " + p.allowed_amount + ")"],
+      ["Needs approval from", p.required_approver],
+      ["Policy used", p.policy_slug],
+      ["AI run", p.agent_status + ", cost $" + p.cost_usd.toFixed(5)],
+    ]),
+    el("h3", { style: "margin-top:10px" }, "Evidence from the order data"),
+    p.evidence.length ? el("ul", {}, p.evidence.map((e) => el("li", {}, e))) : el("p", { class: "muted" }, "None."),
+    p.flags.length ? el("div", {}, el("h3", {}, "Guardrail notes"), el("ul", { class: "flag" }, p.flags.map((f) => el("li", {}, f)))) : null,
+  );
+}
+
+function decisionCard(p) {
+  if (p.status !== "pending") {
+    return el("div", { class: "card" },
+      el("h3", {}, "Decision: " + p.status),
+      kv([
+        ["By", p.decided_by + " (" + p.decided_role + ")"],
+        ["Final amount (Rs)", p.final_amount],
+        ["Final reply", p.final_reply],
+        ["Note", p.decision_note],
+      ]));
+  }
+  const reply = el("textarea", { value: p.draft_reply });
+  const amount = el("input", { type: "number", min: "0", value: String(p.amount) });
+  const reviewer = el("input", { placeholder: "Your name" });
+  const role = el("select", {},
+    el("option", { value: "support_agent" }, "support_agent (up to Rs 200)"),
+    el("option", { value: "team_lead" }, "team_lead (up to Rs 500)"),
+    el("option", { value: "operations_manager" }, "operations_manager (any)"));
+  const note = el("textarea", { placeholder: "Required when rejecting" });
+  note.style.minHeight = "50px";
+
+  async function decide(decision) {
+    const body = { decision, reviewer: reviewer.value, role: role.value, note: note.value || null };
+    if (decision === "edit") {
+      if (reply.value !== p.draft_reply) body.reply = reply.value;
+      if (Number(amount.value) !== p.amount) body.amount = Number(amount.value);
+    }
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      await api("/proposals/" + p.id + "/decision", { method: "POST", body: JSON.stringify(body) });
+      await loadList();
+      await openTicket(p.ticket_id);
+      show("ok", "Saved: " + decision);
+    } catch (e) {
+      buttons.forEach((b) => (b.disabled = false));
+      show("error", e.message);
+    }
+  }
+  const approve = el("button", { class: "primary", onclick: () => decide("approve") }, "Approve as is");
+  const edit = el("button", { onclick: () => decide("edit") }, "Save my edits");
+  const reject = el("button", { class: "danger", onclick: () => decide("reject") }, "Reject");
+  const buttons = [approve, edit, reject];
+
+  return el("div", { class: "card" },
+    el("h3", {}, "Your decision"),
+    el("label", {}, "Reply to the customer (edit it if needed)"), reply,
+    el("label", {}, "Amount in rupees (changing it needs a senior enough role)"), amount,
+    el("div", { class: "row" },
+      el("div", {}, el("label", {}, "Reviewer"), reviewer),
+      el("div", {}, el("label", {}, "Role (not verified in this demo)"), role),
+      el("div", {}, el("label", {}, "Note"), note)),
+    el("div", { class: "actions" }, approve, edit, reject));
+}
+
+function auditCard(audit) {
+  return el("div", { class: "card" },
+    el("h3", {}, "Audit trail"),
+    el("ul", {}, audit.map((a) => el("li", {}, a.event + " by " + a.actor))));
+}
+
+$("filter").onchange = loadList;
+loadList().catch((e) => $("items").append(el("p", { class: "flag", style: "padding:12px" }, e.message)));
+</script>
+</body>
+</html>
