@@ -8,7 +8,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 4. Drafts a reply and a proposed refund.
 5. Waits for a human support agent to approve, edit or reject it.
 
-> **Status:** Steps 0 to 7 done, Step 8 (evaluation) and the review screen built. Deployment pending. See [Progress](#progress).
+> **Status:** Live demo: https://supportpilot-sigma.vercel.app . Steps 0 to 9 built; final eval numbers are being added. See [Progress](#progress). See [Progress](#progress).
 
 ## Docs (read these in order)
 
@@ -61,7 +61,8 @@ supportpilot/
   policies/            the 16 company refund and escalation policies (plain markdown)
   tests/               automated tests
   docs/                flow.md, code-walkthrough.md, eval-report.md
-  Dockerfile           container image for deployment
+  app.py, vercel.json  entry point and settings for the Vercel deployment
+  Dockerfile           container image (an alternative way to deploy; not tested locally)
   .github/workflows/   CI: ruff and pytest on every push
   .env.example         template for secrets (copy to .env)
   pyproject.toml       dependencies and tool settings
@@ -133,7 +134,20 @@ With the server running, open http://127.0.0.1:8000/docs for an interactive page
 - [x] Step 7: human approval and guardrails (AI proposes, code caps it, a human decides, everything is audited)
 - [x] Step 8: evaluation harness (messy and adversarial sets, see [`docs/eval-report.md`](docs/eval-report.md))
 - [x] Step 9a: review screen, Dockerfile, CI
-- [ ] Step 9b: live deployment
+- [x] Step 9b: live deployment on Vercel (https://supportpilot-sigma.vercel.app)
+
+## Live demo and deployment
+
+- **URL:** https://supportpilot-sigma.vercel.app (the review screen). API docs at `/docs`.
+- **Hosting:** Vercel (free Hobby plan). The whole FastAPI app runs as one serverless function. `app.py` is the entry point Vercel looks for, and `vercel.json` sets a 120 second limit (one AI run took about 17 seconds in my live test).
+- **Secrets:** `GEMINI_API_KEY` and `DATABASE_URL` are Vercel environment variables, never in git. The database URL is Neon's pooled connection, because serverless functions open many short connections.
+- **Deploying:** `npx vercel deploy --prod`. The repo is also linked to GitHub, so a push can trigger a deploy.
+- **First request** after a quiet period is a little slower (a serverless cold start).
+
+**Honest limits of the public demo:**
+- **There is no login.** Anyone with the link can run the AI on a ticket or approve a proposal. That is acceptable for a demo with mock data and no real payments. It is not acceptable for a real product.
+- **Gemini quota.** Each ticket can be processed only once and there are 100 tickets, so abuse is bounded, but the free-tier limit is shared by all visitors.
+- **The rate limiter is per instance** (it lives in memory). With several instances running, the total can exceed my 12 requests a minute and the retry code absorbs any 429 errors.
 
 ## Git workflow
 

@@ -572,3 +572,11 @@ A Dockerfile is a recipe for a container image that runs the same on any machine
 
 ### `.github/workflows/ci.yml`: continuous integration
 On every push and pull request, GitHub runs `ruff check`, `ruff format --check` and `pytest` on a clean machine. If any fail, the commit gets a red mark. The tests are offline (fakes), so CI needs no secrets. I confirmed the suite passes with the `.env` file removed.
+
+### Vercel deployment files (Step 9b)
+- **`app.py`** (project root): Vercel looks for a FastAPI object named `app` in a file like `app.py`. Our real app is in `src/supportpilot/main.py`, which Python can't import from the root unless `src` is on the import path. So this file adds `src` to `sys.path` and re-exports `app`. Locally nothing changes: `uv run uvicorn supportpilot.main:app` still works.
+- **`vercel.json`**: `maxDuration: 120` lets one request run up to 120 seconds (an AI run takes 15 to 20 seconds, and the free plan's default is 300). `includeFiles` makes sure `static/index.html` is shipped inside the function, because `GET /` reads it from disk.
+- **`.vercelignore`**: keeps tests, docs, data and `.env` out of what is uploaded.
+- **Secrets** were added with `vercel env add`, read from the local `.env` and sent straight to Vercel, so they never appeared in chat or in git. `vercel link` also added `.vercel` and `.env*` to `.gitignore`.
+- **Verified live:** `/` returned the page, `/health` returned ok, `/tickets` read from Neon, and a real `POST /tickets/2/process` returned a proposal in 17 seconds (Rs 180 for a missing item, approver: support agent, no flags).
+- **Not done:** I did not run Docker. The `Dockerfile` is kept as an alternative but has never been built.
