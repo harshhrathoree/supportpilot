@@ -5,8 +5,9 @@ The loop runs the tool, adds the result to the transcript and asks again. It sto
 model finishes, or when a safety limit is hit (too many steps, too much money, an LLM error).
 A stopped run is never silently dropped: the result says why, so a human can take over.
 
-This step produces evidence and a draft reply only. It does NOT decide refunds. That needs the
-refund policy (Step 6) and a human approval (Step 7).
+The report holds evidence, a draft reply and a SUGGESTED action and amount, chosen using the
+retrieved company policies. The suggestion is never trusted: guardrails.py recomputes the
+allowed amount from the order data, and a human approves before anything happens.
 """
 
 import json
@@ -18,7 +19,9 @@ from pydantic import BaseModel
 
 from supportpilot.classifier import Classification
 from supportpilot.classifier import build_prompt as wrap_ticket
+from supportpilot.guardrails import Action
 from supportpilot.llm import LLMClient, LLMError
+from supportpilot.policies import PolicyHit
 from supportpilot.tools import TOOLS, ToolContext, run_tool
 
 ToolName = Literal["get_order_details", "get_customer_history"]
@@ -33,6 +36,9 @@ class AgentReport(BaseModel):
     verdict: Literal["supported", "contradicted", "unverifiable"]  # does the data back the claim?
     evidence: list[str]
     draft_reply: str
+    policy_slug: str | None = None  # which retrieved policy the suggestion is based on
+    action: Action = "reply_only"
+    amount_rupees: int = 0  # only meaningful for propose_compensation
 
 
 class AgentTurn(BaseModel):
@@ -70,6 +76,17 @@ Each turn, answer with exactly one action:
              claim is false, "unverifiable" if the data cannot confirm or deny it
     evidence: short factual statements, each taken from a tool result
     draft_reply: a polite message to the customer, 2 to 4 sentences
+    policy_slug: the slug of the policy you applied, or null
+    action: "reply_only", "propose_compensation" or "escalate"
+    amount_rupees: for propose_compensation, the amount the policy allows, worked out from tool
+                   results. Otherwise 0.
+
+Company policies are given inside <policy> tags. They are our own trusted rules. Choose the action
+the policy calls for:
+- propose_compensation only when a policy allows it AND the order data confirms the claim.
+- escalate for food safety, rider abuse, or when the policy says a human must check.
+- reply_only when no compensation applies, for example when the data contradicts the claim.
+Your amount is only a suggestion. The system recalculates the limit and a human approves.
 
 Rules:
 - Look at the order before judging. Do not guess. Call a tool when you need a fact.
@@ -93,6 +110,7 @@ def build_prompt(
     classification: Classification,
     linked_order_id: int | None,
     history: list[tuple[str, int | None, str]],
+    policies: list[PolicyHit] | None = None,
 ) -> str:
     lines = [
         f"Category from the classifier: {classification.category}, "
@@ -101,6 +119,8 @@ def build_prompt(
         wrap_ticket(ticket_text),
         "",
     ]
+    for policy in policies or []:
+        lines.append(f'<policy slug="{policy.slug}">\n{policy.content}\n</policy>')
     if history:
         lines.append("Tool calls so far:")
         for i, (tool, order_id, result) in enumerate(history, start=1):
@@ -119,6 +139,7 @@ def run_agent(
     classification: Classification,
     linked_order_id: int | None,
     *,
+    policies: list[PolicyHit] | None = None,
     max_steps: int = MAX_STEPS,
     max_cost_usd: float = MAX_COST_USD,
 ) -> AgentResult:
@@ -128,7 +149,7 @@ def run_agent(
 
     for step in range(1, max_steps + 1):
         result.steps = step
-        prompt = build_prompt(ticket_text, classification, linked_order_id, history)
+        prompt = build_prompt(ticket_text, classification, linked_order_id, history, policies)
         try:
             turn, usage = llm.generate_structured(system=system, prompt=prompt, schema=AgentTurn)
         except LLMError as e:
