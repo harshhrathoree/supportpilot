@@ -129,3 +129,28 @@ def test_a_policy_file_without_a_title_is_rejected(tmp_path):
     (tmp_path / "bad.md").write_text("no title here")
     with pytest.raises(ValueError, match="Title"):
         read_policy_files(tmp_path)
+
+
+def test_embedder_retries_a_503_then_succeeds():
+    from types import SimpleNamespace
+
+    from google.genai import errors
+
+    from supportpilot.embeddings import GeminiEmbedder
+
+    class Flaky:
+        def __init__(self):
+            self.calls = 0
+            self.models = self
+
+        def embed_content(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise errors.APIError(503, {"error": {"code": 503, "message": "x", "status": "X"}})
+            return SimpleNamespace(embeddings=[SimpleNamespace(values=[0.5, 0.5])])
+
+    embedder = GeminiEmbedder(api_key="test")
+    embedder._limiter = SimpleNamespace(wait=lambda: None)
+    embedder._client = Flaky()
+    assert embedder.embed_query("hi") == [0.5, 0.5]
+    assert embedder._client.calls == 2

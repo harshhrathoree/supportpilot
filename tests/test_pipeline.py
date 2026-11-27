@@ -29,10 +29,13 @@ class FakeEmbedder:
 class FakeLLM:
     """Answers the classifier and the agent from prepared values, and records every call."""
 
-    def __init__(self, category="late_delivery", report=None, fail_agent=False):
+    def __init__(
+        self, category="late_delivery", report=None, fail_agent=False, fail_classifier=False
+    ):
         self.category = category
         self.report = report
         self.fail_agent = fail_agent
+        self.fail_classifier = fail_classifier
         self.prompts: list[str] = []
         self.tool_called = False
 
@@ -40,6 +43,8 @@ class FakeLLM:
         self.prompts.append(prompt)
         usage = Usage("fake", 10, 5)
         if schema is Classification:
+            if self.fail_classifier:
+                raise LLMError("classifier down")
             return Classification(
                 category=self.category, confidence=0.9, priority="medium", reason="x"
             ), usage
@@ -154,6 +159,17 @@ def test_when_the_model_is_down_the_ticket_goes_to_a_human_with_a_safe_reply(db)
     assert (proposal.agent_status, proposal.action, proposal.amount) == ("llm_error", "escalate", 0)
     assert proposal.draft_reply == pipeline.FALLBACK_REPLY
     assert db.get(models.Ticket, 1).status == "awaiting_approval"
+
+
+def test_a_classifier_outage_still_produces_a_safe_proposal(db):
+    # The agent is told to ask for money, and the data would even allow Rs 100. Without a
+    # category the guardrails must still refuse it.
+    proposal = process(db, FakeLLM(report=report(), fail_classifier=True))
+    ticket = db.get(models.Ticket, 1)
+    assert (proposal.action, proposal.amount) == ("escalate", 0)
+    assert any("classifier failed" in f for f in proposal.flags)
+    assert ticket.category is None
+    assert ticket.status == "awaiting_approval"
 
 
 def test_a_ticket_cannot_be_processed_twice(db):

@@ -14,10 +14,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from supportpilot.agent import run_agent
-from supportpilot.classifier import classify
+from supportpilot.classifier import Classification, classify
 from supportpilot.embeddings import Embedder
 from supportpilot.guardrails import ROLE_RANK, apply_guardrails, can_approve, required_approver
-from supportpilot.llm import LLMClient
+from supportpilot.llm import LLMClient, LLMError, Usage
 from supportpilot.models import AuditEvent, Proposal, Ticket
 from supportpilot.policies import search_policies
 from supportpilot.tools import ToolContext, get_customer_history, get_order_details
@@ -61,8 +61,18 @@ def process_ticket(
     if ticket.status != "open" or already is not None:
         raise AlreadyProcessed(f"Ticket {ticket_id} was already processed")
 
-    classification, class_usage = classify(llm, ticket.text)
-    ticket.category = classification.category
+    flags: list[str] = []
+    try:
+        classification, class_usage = classify(llm, ticket.text)
+        ticket.category = classification.category
+    except LLMError as e:
+        # Never lose a ticket because the model is down. "other" cannot receive compensation,
+        # so the guardrails keep this safe, and the ticket's own category stays empty.
+        classification = Classification(
+            category="other", confidence=0.0, priority="medium", reason="classifier unavailable"
+        )
+        class_usage = Usage("none", 0, 0)
+        flags.append(f"classifier failed, so no category and no compensation: {e}")
 
     hits = search_policies(session, embedder, f"{classification.category}: {ticket.text}", top_k=3)
     ctx = ToolContext(session, ticket.customer_id, ticket_id=ticket.id)
@@ -83,7 +93,7 @@ def process_ticket(
         requested_amount=report.amount_rupees if report else 0,
     )
 
-    flags = list(guard.flags)
+    flags.extend(guard.flags)
     policy_slug = report.policy_slug if report else None
     if policy_slug is not None and policy_slug not in {h.slug for h in hits}:
         flags.append(f"agent cited policy {policy_slug!r}, which was not retrieved: ignored")

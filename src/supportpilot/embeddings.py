@@ -11,9 +11,10 @@ from typing import Protocol
 
 from google import genai
 from google.genai import types
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from supportpilot.config import settings
-from supportpilot.llm import RateLimiter
+from supportpilot.llm import RateLimiter, is_retryable
 
 
 class Embedder(Protocol):
@@ -34,6 +35,12 @@ class GeminiEmbedder:
         # Embedding calls have their own quota, but we reuse the same polite spacing.
         self._limiter = RateLimiter(settings.llm_max_requests_per_minute)
 
+    @retry(
+        retry=retry_if_exception(is_retryable),  # same rule as the LLM client: 429 and 5xx only
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, max=10),
+        reraise=True,
+    )
     def _embed(self, texts: list[str], task_type: str) -> list[list[float]]:
         self._limiter.wait()
         response = self._client.models.embed_content(
