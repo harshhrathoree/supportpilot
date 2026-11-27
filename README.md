@@ -8,7 +8,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 4. Drafts a reply and a proposed refund.
 5. Waits for a human support agent to approve, edit or reject it.
 
-> **Status:** Step 0 done (project skeleton and health endpoint). See [Progress](#progress).
+> **Status:** Step 1 done (Neon database and schema). See [Progress](#progress).
 
 ## Docs (read these in order)
 
@@ -35,6 +35,9 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 supportpilot/
   src/supportpilot/    application code
     config.py          reads settings and secrets from .env
+    db.py              database connection (SQLAlchemy engine and sessions)
+    models.py          table definitions: customers, orders, order_items, tickets
+    init_db.py         creates the tables in Neon
     main.py            the FastAPI app and its routes
   tests/               automated tests
   docs/                flow.md and code-walkthrough.md
@@ -51,10 +54,13 @@ uv sync
 # 2. Create your secrets file and fill it in later steps
 cp .env.example .env
 
-# 3. Start the server
+# 3. Create the database tables in Neon (needs DATABASE_URL in .env)
+uv run python -m supportpilot.init_db
+
+# 4. Start the server
 uv run uvicorn supportpilot.main:app --reload
 
-# 4. Open http://127.0.0.1:8000/health  -> {"status":"ok"}
+# 5. Open http://127.0.0.1:8000/health  -> {"status":"ok"}
 #    Interactive API docs: http://127.0.0.1:8000/docs
 ```
 
@@ -68,7 +74,7 @@ uv run ruff check . && uv run ruff format --check .
 ## Progress
 
 - [x] Step 0: project skeleton, health endpoint, tests
-- [ ] Step 1: Neon database and schema
+- [x] Step 1: Neon database and schema
 - [ ] Step 2: mock data generator
 - [ ] Step 3: Gemini provider layer
 - [ ] Step 4: ticket classifier

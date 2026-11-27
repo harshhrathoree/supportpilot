@@ -29,3 +29,68 @@ Added as we build them. Planned flows:
 3. Policy retrieval
 4. Draft, then human approval, then refund or reply
 5. Evaluation run
+
+## Flow 2: Database setup (Step 1)
+
+**Trigger:** you run `uv run python -m supportpilot.init_db` once (and again any time we add a table).
+
+```mermaid
+sequenceDiagram
+    participant Y as You
+    participant I as init_db.py
+    participant S as config.py
+    participant N as Neon Postgres
+    Y->>I: run the script
+    I->>S: read DATABASE_URL from .env
+    I->>N: CREATE EXTENSION IF NOT EXISTS vector
+    I->>N: CREATE TABLE IF NOT EXISTS (for each model)
+    N-->>I: done
+    I-->>Y: "Database ready: customers, orders, order_items, tickets"
+```
+
+**Safe to repeat:** both statements use "if not exists", so running it twice changes nothing.
+
+### How the tables relate
+
+```mermaid
+erDiagram
+    customers ||--o{ orders : places
+    customers ||--o{ tickets : files
+    orders ||--|{ order_items : contains
+    orders ||--o{ tickets : "is about"
+    customers {
+        int id PK
+        string name
+        string phone
+    }
+    orders {
+        int id PK
+        int customer_id FK
+        string restaurant_name
+        string status
+        int total_amount
+        datetime placed_at
+        datetime promised_at
+        datetime delivered_at
+    }
+    order_items {
+        int id PK
+        int order_id FK
+        string name
+        int quantity
+        int price
+        bool packed
+    }
+    tickets {
+        int id PK
+        int customer_id FK
+        int order_id FK
+        text text
+        string category
+        string status
+    }
+```
+
+**Why these columns matter later:** the agent will compare `delivered_at` with `promised_at` to detect lateness, and check `packed = false` to confirm a missing item. Those are the facts that make its decisions grounded instead of guessed.
+
+**Files:** `src/supportpilot/init_db.py`, `db.py`, `models.py`.
