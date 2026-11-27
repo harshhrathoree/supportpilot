@@ -8,7 +8,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 4. Drafts a reply and a proposed refund.
 5. Waits for a human support agent to approve, edit or reject it.
 
-> **Status:** Step 2 done (mock data generator). See [Progress](#progress).
+> **Status:** Step 3 done (Gemini LLM layer). See [Progress](#progress).
 
 ## Docs (read these in order)
 
@@ -25,7 +25,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 | Language | Python 3.12 | Standard for AI work |
 | Web framework | FastAPI | Fast, typed, auto-generated API docs |
 | Database | Neon (Postgres + pgvector) | One free serverless database for orders, tickets and policy embeddings |
-| LLM | Google Gemini | Free tier, good structured output and tool calling |
+| LLM | Google Gemini (`gemini-3.5-flash-lite`, fallback `gemini-3.1-flash-lite`) | Free tier, structured output, very cheap. Model names are set in `config.py` and can be overridden in `.env` with `LLM_MODEL` |
 | Package manager | uv | Fast, creates the virtual environment for us |
 | Tests / lint | pytest, ruff | Standard tools |
 
@@ -40,6 +40,7 @@ supportpilot/
     init_db.py         creates the tables in Neon
     mock_data.py      generates fake customers, orders and labeled tickets
     seed.py            saves the mock data to Neon and writes data/labels.jsonl
+    llm.py             the only file that talks to Gemini: structured output, retries, fallback, cost
     main.py            the FastAPI app and its routes
   data/labels.jsonl    ground-truth category for each of the 100 tickets
   tests/               automated tests
@@ -82,7 +83,7 @@ uv run ruff check . && uv run ruff format --check .
 - [x] Step 0: project skeleton, health endpoint, tests
 - [x] Step 1: Neon database and schema
 - [x] Step 2: mock data generator
-- [ ] Step 3: Gemini provider layer
+- [x] Step 3: Gemini provider layer
 - [ ] Step 4: ticket classifier
 - [ ] Step 5: agent loop with order tools
 - [ ] Step 6: policy retrieval (RAG)

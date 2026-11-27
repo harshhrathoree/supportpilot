@@ -140,3 +140,30 @@ flowchart TD
 **Reproducible:** the same seed (42) always gives the same data, so everyone gets the same eval set.
 
 **Files:** `src/supportpilot/mock_data.py`, `seed.py`, `data/labels.jsonl`.
+
+## Flow 4: One LLM call (Step 3)
+
+**Trigger:** any part of the app (the classifier in Step 4, the agent in Step 5) calls `generate_structured(system, prompt, schema)`.
+
+```mermaid
+flowchart TD
+    A[Caller: system prompt + user prompt + Pydantic schema] --> B[Call main model]
+    B -->|success| P{Answer matches the schema?}
+    B -->|429 or 5xx error| R{Attempts left? max 3}
+    R -->|yes: wait 1s, 2s...| B
+    R -->|no| F[Call fallback model with the same retry rule]
+    B -->|400 or 404: our mistake| X[Raise LLMError immediately]
+    F -->|success| P
+    F -->|fails| Y[Raise LLMError: both models failed]
+    P -->|yes| OK[Return the Pydantic object + Usage: model, tokens, cost]
+    P -->|no| Z[Raise LLMError: invalid answer]
+```
+
+**Why each rule exists**
+- **Structured output:** the model is forced to answer in JSON that fits our schema, so downstream code never parses free text.
+- **Retries with growing waits:** Google sometimes returns 503 "high demand" for a few seconds. This happened to us on the first day while testing.
+- **No retry on 400/404:** these mean our request is wrong, so retrying wastes time. We hit this too: older model names answered 404.
+- **Fallback model:** if the main model stays down, a second one keeps tickets flowing.
+- **Usage record:** every call reports the model used, tokens and dollar cost, which Step 8 turns into "cost per ticket".
+
+**Files:** `src/supportpilot/llm.py`, `config.py` (model names), `tests/test_llm.py`.

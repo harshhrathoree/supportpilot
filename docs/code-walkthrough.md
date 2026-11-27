@@ -177,3 +177,64 @@ Each test checks one promise the generator makes:
 
 ### Honest limitation
 Each category has only five sentence templates, so a classifier will find this set **too easy**, and an accuracy score on it would flatter the system. In Step 8, before we trust any numbers, we will have Gemini write varied and messy tickets (typos, mixed Hindi and English, vague wording) and add them to the eval set.
+
+## Step 3: The Gemini LLM layer
+
+### Big picture
+An LLM is a service we call over the internet. Instead of scattering Google-specific code all over the app, we put **all of it in one file**, `llm.py`. Every other file asks that file a question and gets back a clean Python object. Benefits: one place to add retries and cost tracking, and switching to another provider later means changing one file.
+
+New dependencies:
+- **google-genai**: Google's official Python library for Gemini.
+- **tenacity**: a small library that retries a function with waiting between attempts.
+
+### Finding a model that works (what actually happened)
+Listing models on your key showed many names, including `gemini-2.5-flash`, but calling it returned **404 "no longer available to new users"**. The list showed what exists, not what **you** may use. Two other models returned **503 "high demand"** at that moment. Only `gemini-3.5-flash-lite` answered. Lesson: test a real call, and expect transient errors. That is why the retry and fallback code exists.
+
+### `config.py` changes
+Two new settings, `llm_model` and `llm_fallback_model`. Model names are configuration, not code, so you can change one with `LLM_MODEL=...` in `.env` and never edit Python.
+
+### `src/supportpilot/llm.py`
+
+**`PRICING_PER_M_TOKENS`**: the price in dollars per million tokens (input, output). A **token** is roughly a word fragment, and LLMs bill by tokens. These numbers are approximate and only used to track cost.
+
+**`Usage`** (a `@dataclass`): one record of what a call used: model name, input tokens, output tokens. Its `cost_usd` property multiplies tokens by the price. Models missing from the price table count as free rather than crashing.
+
+**`LLMError`**: our own error type. The rest of the app only has to catch this one type instead of knowing about Google's errors.
+
+**`LLMClient` (a `Protocol`)**: describes the shape the app depends on: "something with a `generate_structured` method". Any class that has this method counts, with no inheritance needed. That is what makes providers swappable, and it also lets tests pass in fakes.
+
+**`is_retryable`**: decides whether an error is worth retrying.
+- `429` means we're sending too fast. `5xx` means Google has a problem. Both can pass in seconds, so retry.
+- `400`/`404` mean our request is wrong. Retrying won't help, so fail right away.
+
+**`GeminiClient.__init__`**: builds Google's client from your key. If the key is empty it raises a clear error immediately, rather than a confusing one on the first call.
+
+**`generate_structured`** is the method everything uses:
+1. Try the main model. `_call` retries it up to 3 times.
+2. If it still fails with a retryable error, try the fallback model.
+3. If that fails too, raise `LLMError`.
+4. A non-retryable error (like 404) skips the fallback and raises at once.
+
+**`_call`** does one model call:
+- `@retry(...)` (tenacity) retries only when `is_retryable` says so, makes at most 3 attempts, and waits longer each time (`wait_exponential`: 1s, then 2s, up to 10s). `reraise=True` makes it raise the real error after the last attempt instead of a wrapper.
+- `response_mime_type="application/json"` plus `response_schema=schema` tells Gemini to answer in JSON that fits our Pydantic class. It is the main reason downstream code stays simple, since there's no parsing of free text.
+- `temperature=0` removes randomness. The same input gives (almost) the same output, which matters for tests and evals.
+- `response.parsed` is the answer already converted to our Pydantic object. If that isn't an instance of the schema, the model gave us something unusable and we raise `LLMError`.
+- We read the token counts from `usage_metadata` into a `Usage`.
+
+### `tests/test_llm.py`
+We never call Google in tests, since that is slow, costs money, and fails when the network does. `FakeGoogle` replaces Google's client and plays a **script**: a list with one entry per call, either an error to raise or a response to return. Tests cover:
+- a normal success returns the object and usage
+- a 503 is retried and then succeeds (3 calls on the same model)
+- after retries run out it moves to the fallback model
+- a 404 is not retried and does not fall back
+- both models failing raises `LLMError`
+- an unparseable answer raises `LLMError`
+- an empty API key gives a clear error
+- `is_retryable` accepts only 429 and 5xx
+- the cost arithmetic is right
+
+`retry_wait_seconds=0` makes the tests skip the real waiting.
+
+### Real-call check
+Besides the unit tests, we made one real call with the ticket "Idli Sambar wasn't in the package". It returned `missing_item` using 66 input and 34 output tokens, about $0.00002. That is roughly **$0.02 per 1,000 tickets** for classification, which leaves lots of room in the cost budget.
