@@ -1,0 +1,10 @@
+.env
+.venv
+.git
+tests
+docs
+data
+traces
+.github
+Dockerfile
+.dockerignore

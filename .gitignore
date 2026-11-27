@@ -16,3 +16,5 @@ __pycache__/
 
 # Generated agent traces (one sample is kept in docs/examples/)
 traces/
+.vercel
+.env*
