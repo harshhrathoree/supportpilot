@@ -1,0 +1,100 @@
+{"ticket_id": 1, "order_id": 60, "category": "wrong_item", "text": "I ordered Veg Hakka Noodles but got Spring Rolls instead. Order #60."}
+{"ticket_id": 2, "order_id": 172, "category": "missing_item", "text": "Hi, my Idli Sambar wasn't in the package. Order #172. Please fix."}
+{"ticket_id": 3, "order_id": 210, "category": "refund_status", "text": "Still waiting for my refund of Rs 700 from Dosa Darbar. When will it arrive?"}
+{"ticket_id": 4, "order_id": 312, "category": "refund_status", "text": "Still waiting for my refund of Rs 1240 from Biryani House. When will it arrive?"}
+{"ticket_id": 5, "order_id": 44, "category": "food_quality", "text": "the peri peri fries was way too oily and smelled off"}
+{"ticket_id": 6, "order_id": 123, "category": "late_delivery", "text": "My order #123 from Tandoor Tales came 40 minutes later than promised. Unacceptable."}
+{"ticket_id": 7, "order_id": 179, "category": "payment_issue", "text": "applied a coupon but the full amount was charged for order #179"}
+{"ticket_id": 8, "order_id": 156, "category": "missing_item", "text": "you charged me for Veg Hakka Noodles but it never came"}
+{"ticket_id": 9, "order_id": 61, "category": "payment_issue", "text": "I was charged twice for order #61. Please reverse the extra payment."}
+{"ticket_id": 10, "order_id": null, "category": "other", "text": "your app keeps crashing when i open the cart."}
+{"ticket_id": 11, "order_id": 225, "category": "payment_issue", "text": "applied a coupon but the full amount was charged for order #225"}
+{"ticket_id": 12, "order_id": 184, "category": "late_delivery", "text": "Late delivery again!! order number 184. I want compensation."}
+{"ticket_id": 13, "order_id": null, "category": "other", "text": "Can I add a new delivery address for my office?"}
+{"ticket_id": 14, "order_id": null, "category": "other", "text": "can i add a new delivery address for my office?"}
+{"ticket_id": 15, "order_id": 138, "category": "rider_behavior", "text": "rider refused to bring the food to my door and argued with me"}
+{"ticket_id": 16, "order_id": 283, "category": "food_quality", "text": "The Manchow Soup from Wok Express was completely cold when it arrived. Order #283."}
+{"ticket_id": 17, "order_id": null, "category": "other", "text": "I want to delete my account, how do I do that?"}
+{"ticket_id": 18, "order_id": 467, "category": "payment_issue", "text": "payment of rs 680 went through but i did not get any confirmation. order 467."}
+{"ticket_id": 19, "order_id": 438, "category": "rider_behavior", "text": "the delivery guy was rude and shouted at me when i asked about my order #438."}
+{"ticket_id": 20, "order_id": 125, "category": "payment_issue", "text": "I was charged twice for order #125. Please reverse the extra payment."}
+{"ticket_id": 21, "order_id": 236, "category": "missing_item", "text": "you charged me for Paneer Tikka but it never came"}
+{"ticket_id": 22, "order_id": 325, "category": "late_delivery", "text": "My order #325 from Pizza Corner came 33 minutes later than promised. Unacceptable."}
+{"ticket_id": 23, "order_id": 342, "category": "food_quality", "text": "Found a hair in my Dal Makhani!! This is disgusting. order #342"}
+{"ticket_id": 24, "order_id": 146, "category": "missing_item", "text": "Opened the bag from Dosa Darbar and there is no Rava Dosa. Please refund that item."}
+{"ticket_id": 25, "order_id": 222, "category": "missing_item", "text": "you charged me for Spring Rolls but it never came"}
+{"ticket_id": 26, "order_id": 398, "category": "late_delivery", "text": "my order #398 from pizza corner came 26 minutes later than promised. unacceptable."}
+{"ticket_id": 27, "order_id": 178, "category": "missing_item", "text": "hi, my aloo tikki burger wasn't in the package. order #178. please fix."}
+{"ticket_id": 28, "order_id": 25, "category": "payment_issue", "text": "Money got deducted from my account twice for the same order."}
+{"ticket_id": 29, "order_id": 436, "category": "late_delivery", "text": "The food from Wok Express arrived way later than the time you showed me. Please look into it."}
+{"ticket_id": 30, "order_id": 185, "category": "late_delivery", "text": "Late delivery again!! order number 185. I want compensation."}
+{"ticket_id": 31, "order_id": 386, "category": "missing_item", "text": "Hi, my Chocolate Shake wasn't in the package. Order #386. Please fix."}
+{"ticket_id": 32, "order_id": 343, "category": "refund_status", "text": "Where is my refund for order #343? It's been 5 days."}
+{"ticket_id": 33, "order_id": 280, "category": "late_delivery", "text": "The food from Burger Barn arrived way later than the time you showed me. Please look into it."}
+{"ticket_id": 34, "order_id": 221, "category": "late_delivery", "text": "Rider took forever. I was starving and it arrived 70 min after the promised time."}
+{"ticket_id": 35, "order_id": 458, "category": "food_quality", "text": "the Farmhouse Pizza was way too oily and smelled off"}
+{"ticket_id": 36, "order_id": 353, "category": "late_delivery", "text": "why was my delivery so delayed? order 353 took 55 minutes longer than the eta."}
+{"ticket_id": 37, "order_id": 422, "category": "missing_item", "text": "opened the bag from tandoor tales and there is no garlic naan. please refund that item."}
+{"ticket_id": 38, "order_id": 124, "category": "food_quality", "text": "the Margherita Pizza was way too oily and smelled off"}
+{"ticket_id": 39, "order_id": 235, "category": "late_delivery", "text": "Late delivery again!! order number 235. I want compensation."}
+{"ticket_id": 40, "order_id": 26, "category": "refund_status", "text": "Where is my refund for order #26? It's been 5 days."}
+{"ticket_id": 41, "order_id": 465, "category": "wrong_item", "text": "received the wrong order? I got Manchow Soup, not Fried Rice."}
+{"ticket_id": 42, "order_id": 421, "category": "late_delivery", "text": "Rider took forever. I was starving and it arrived 35 min after the promised time."}
+{"ticket_id": 43, "order_id": 43, "category": "missing_item", "text": "Opened the bag from Biryani House and there is no Mutton Biryani. Please refund that item."}
+{"ticket_id": 44, "order_id": 224, "category": "wrong_item", "text": "I ordered Vada but got Rava Dosa instead. Order #224."}
+{"ticket_id": 45, "order_id": 114, "category": "payment_issue", "text": "my card was debited two times. fix this asap"}
+{"ticket_id": 46, "order_id": 460, "category": "rider_behavior", "text": "The delivery guy was rude and shouted at me when I asked about my order #460."}
+{"ticket_id": 47, "order_id": 192, "category": "late_delivery", "text": "The food from Dosa Darbar arrived way later than the time you showed me. Please look into it."}
+{"ticket_id": 48, "order_id": 489, "category": "rider_behavior", "text": "Rider asked me to come downstairs to collect and was very impolite."}
+{"ticket_id": 49, "order_id": 448, "category": "food_quality", "text": "Found a hair in my Manchow Soup!! This is disgusting. order #448"}
+{"ticket_id": 50, "order_id": 89, "category": "wrong_item", "text": "order 89 has the wrong dish, i got raita rather than gulab jamun"}
+{"ticket_id": 51, "order_id": 423, "category": "payment_issue", "text": "Payment of Rs 340 went through but I did not get any confirmation. Order 423."}
+{"ticket_id": 52, "order_id": 12, "category": "rider_behavior", "text": "The rider marked the order delivered and then called me abusive words."}
+{"ticket_id": 53, "order_id": 464, "category": "late_delivery", "text": "Rider took forever. I was starving and it arrived 42 min after the promised time."}
+{"ticket_id": 54, "order_id": 90, "category": "food_quality", "text": "My Farmhouse Pizza was soggy and undercooked. Very disappointed with order 90."}
+{"ticket_id": 55, "order_id": 79, "category": "rider_behavior", "text": "The delivery guy was rude and shouted at me when I asked about my order #79."}
+{"ticket_id": 56, "order_id": 147, "category": "refund_status", "text": "refund status please. order #147 was cancelled"}
+{"ticket_id": 57, "order_id": 102, "category": "rider_behavior", "text": "The rider marked the order delivered and then called me abusive words."}
+{"ticket_id": 58, "order_id": 186, "category": "food_quality", "text": "The Choco Lava Cake from Pizza Corner was completely cold when it arrived. Order #186."}
+{"ticket_id": 59, "order_id": 344, "category": "refund_status", "text": "how long will the refund take for my cancelled order"}
+{"ticket_id": 60, "order_id": 187, "category": "rider_behavior", "text": "delivery partner misbehaved with my mother. Order 187. Take action."}
+{"ticket_id": 61, "order_id": 295, "category": "missing_item", "text": "one item missing in order 295 - Butter Chicken"}
+{"ticket_id": 62, "order_id": 208, "category": "wrong_item", "text": "order 208 has the wrong dish, I got Paneer Tikka rather than Garlic Naan"}
+{"ticket_id": 63, "order_id": 354, "category": "missing_item", "text": "one item missing in order 354 - Chicken Biryani"}
+{"ticket_id": 64, "order_id": 399, "category": "payment_issue", "text": "Payment of Rs 1450 went through but I did not get any confirmation. Order 399."}
+{"ticket_id": 65, "order_id": 52, "category": "food_quality", "text": "the Chicken Burger was way too oily and smelled off"}
+{"ticket_id": 66, "order_id": 281, "category": "missing_item", "text": "Peri Peri Fries was missing from my order #281. I paid for it!"}
+{"ticket_id": 67, "order_id": null, "category": "other", "text": "can i add a new delivery address for my office?"}
+{"ticket_id": 68, "order_id": null, "category": "other", "text": "how do i change my registered phone number?"}
+{"ticket_id": 69, "order_id": 459, "category": "payment_issue", "text": "Payment of Rs 510 went through but I did not get any confirmation. Order 459."}
+{"ticket_id": 70, "order_id": 5, "category": "missing_item", "text": "Filter Coffee was missing from my order #5. I paid for it!"}
+{"ticket_id": 71, "order_id": 24, "category": "wrong_item", "text": "I ordered Rava Dosa but got Idli Sambar instead. Order #24."}
+{"ticket_id": 72, "order_id": 223, "category": "wrong_item", "text": "received the wrong order? I got Garlic Naan, not Butter Chicken."}
+{"ticket_id": 73, "order_id": 263, "category": "refund_status", "text": "I cancelled order 263 but the money has not come back yet."}
+{"ticket_id": 74, "order_id": 302, "category": "refund_status", "text": "I cancelled order 302 but the money has not come back yet."}
+{"ticket_id": 75, "order_id": 45, "category": "payment_issue", "text": "my card was debited two times. fix this asap"}
+{"ticket_id": 76, "order_id": 252, "category": "food_quality", "text": "the Chicken Biryani was way too oily and smelled off"}
+{"ticket_id": 77, "order_id": 112, "category": "missing_item", "text": "Hi, my Chicken Burger wasn't in the package. Order #112. Please fix."}
+{"ticket_id": 78, "order_id": 113, "category": "wrong_item", "text": "I ordered Paneer Tikka but got Jeera Rice instead. Order #113."}
+{"ticket_id": 79, "order_id": 157, "category": "food_quality", "text": "Found a hair in my Chicken Burger!! This is disgusting. order #157"}
+{"ticket_id": 80, "order_id": 249, "category": "late_delivery", "text": "Rider took forever. I was starving and it arrived 29 min after the promised time."}
+{"ticket_id": 81, "order_id": 365, "category": "late_delivery", "text": "My order #365 from Dosa Darbar came 35 minutes later than promised. Unacceptable."}
+{"ticket_id": 82, "order_id": null, "category": "other", "text": "can i add a new delivery address for my office?"}
+{"ticket_id": 83, "order_id": 251, "category": "wrong_item", "text": "I ordered Choco Lava Cake but got Farmhouse Pizza instead. Order #251."}
+{"ticket_id": 84, "order_id": 253, "category": "refund_status", "text": "how long will the refund take for my cancelled order"}
+{"ticket_id": 85, "order_id": null, "category": "other", "text": "Can I add a new delivery address for my office?"}
+{"ticket_id": 86, "order_id": 338, "category": "late_delivery", "text": "Rider took forever. I was starving and it arrived 35 min after the promised time."}
+{"ticket_id": 87, "order_id": 78, "category": "payment_issue", "text": "money got deducted from my account twice for the same order."}
+{"ticket_id": 88, "order_id": 193, "category": "refund_status", "text": "Where is my refund for order #193? It's been 5 days."}
+{"ticket_id": 89, "order_id": 137, "category": "wrong_item", "text": "I ordered Chocolate Shake but got Peri Peri Fries instead. Order #137."}
+{"ticket_id": 90, "order_id": 437, "category": "wrong_item", "text": "I ordered Dal Makhani but got Butter Chicken instead. Order #437."}
+{"ticket_id": 91, "order_id": 250, "category": "missing_item", "text": "Filter Coffee was missing from my order #250. I paid for it!"}
+{"ticket_id": 92, "order_id": 466, "category": "food_quality", "text": "the Raita was way too oily and smelled off"}
+{"ticket_id": 93, "order_id": 36, "category": "missing_item", "text": "hi, my idli sambar wasn't in the package. order #36. please fix."}
+{"ticket_id": 94, "order_id": 271, "category": "food_quality", "text": "food was stale and tasted bad, I couldn't eat the Choco Lava Cake."}
+{"ticket_id": 95, "order_id": 77, "category": "missing_item", "text": "you charged me for idli sambar but it never came"}
+{"ticket_id": 96, "order_id": 145, "category": "late_delivery", "text": "The food from Burger Barn arrived way later than the time you showed me. Please look into it."}
+{"ticket_id": 97, "order_id": 408, "category": "missing_item", "text": "Hi, my Rava Dosa wasn't in the package. Order #408. Please fix."}
+{"ticket_id": 98, "order_id": 282, "category": "wrong_item", "text": "i ordered chicken biryani but got raita instead. order #282."}
+{"ticket_id": 99, "order_id": 209, "category": "food_quality", "text": "the fried rice from wok express was completely cold when it arrived. order #209."}
+{"ticket_id": 100, "order_id": 366, "category": "late_delivery", "text": "rider took forever. i was starving and it arrived 43 min after the promised time."}
