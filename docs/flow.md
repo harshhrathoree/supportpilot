@@ -200,3 +200,60 @@ sequenceDiagram
 **Why a rate limiter:** the free tier allows 15 calls per minute per model. The limiter spaces calls 5 seconds apart (12 per minute), so a batch of 100 tickets takes about 8 minutes but never errors.
 
 **Files:** `src/supportpilot/classifier.py`, `llm.py`, `classify_labels.py`, `tests/test_classifier.py`.
+
+## Flow 6: The agent investigates a ticket (Step 5)
+
+**Trigger:** `uv run python -m supportpilot.run_ticket <ticket_id>` today. Later, a new ticket arriving in the app.
+
+```mermaid
+sequenceDiagram
+    participant R as run_ticket.py
+    participant C as classifier
+    participant A as agent loop
+    participant M as Gemini
+    participant T as tools.py
+    participant D as Neon DB
+    R->>C: classify(ticket text)
+    C-->>R: category, priority
+    R->>A: run_agent(ticket, category, linked order id)
+    loop until finish or a limit is hit (max 6 steps, max $0.02)
+        A->>M: transcript so far, what is your next action?
+        M-->>A: call_tool(get_order_details, order 172)  OR  finish(report)
+        A->>T: run the tool (customer id comes from the ticket)
+        T->>D: read-only query
+        D-->>T: rows
+        T-->>A: JSON facts (minutes late, items, packed flags)
+    end
+    A-->>R: status, report (verdict, evidence, draft reply), trace
+    R->>R: save traces/ticket_N.jsonl
+```
+
+### When the loop stops
+```mermaid
+flowchart TD
+    S[Ask the model for its next action] --> E{LLM error?}
+    E -->|yes| X1[status = llm_error]
+    E -->|no| F{Action}
+    F -->|finish with a report| OK[status = finished]
+    F -->|call a tool| T[Run the tool, add the result to the transcript]
+    F -->|bad action: no tool name, or finish without a report| B[Tell the model what was wrong, keep going]
+    T --> C{Cost over budget?}
+    B --> C
+    C -->|yes| X2[status = budget_exceeded]
+    C -->|no| N{Steps left?}
+    N -->|yes| S
+    N -->|no| X3[status = step_limit]
+```
+
+A run that stops early is never lost: the result says why, so a human can pick up the ticket.
+
+### What keeps the agent safe
+| Risk | Defence |
+|---|---|
+| The agent changes data | All tools are read-only. A test checks every tool name starts with `get_`. |
+| The agent reads another customer's order | The customer id comes from the ticket, set by our code. The model only supplies an order id, and a foreign order gets the same "not found" answer as a missing one. |
+| A ticket says "refund me" or "ignore your rules" | The ticket and tool output are wrapped in tags and marked as data. The agent has no refund tool at all, so even a tricked agent cannot move money. |
+| The agent loops forever or burns money | Step limit (6) and cost limit ($0.02). |
+| The agent makes up facts | The prompt requires evidence from tool results, and the full trace is saved so a reviewer can check each claim. |
+
+**Files:** `src/supportpilot/tools.py`, `agent.py`, `run_ticket.py`, `tests/test_tools.py`, `tests/test_agent.py`. Sample output: `docs/examples/trace_missing_item.jsonl`.
