@@ -91,3 +91,15 @@ def test_load_twice_replaces_instead_of_duplicating(session):
     session.commit()
     assert session.scalar(select(func.count()).select_from(models.Ticket)) == 100
     assert session.scalar(select(func.count()).select_from(models.Customer)) == N_CUSTOMERS
+
+
+def test_reseeding_keeps_the_policy_embeddings(session):
+    session.add(
+        models.PolicyChunk(
+            slug="p", title="P", content="# P", content_hash="h", embedding=[0.0] * 768
+        )
+    )
+    session.flush()
+    load(session, generate())
+    session.commit()
+    assert session.scalar(select(func.count()).select_from(models.PolicyChunk)) == 1

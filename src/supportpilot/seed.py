@@ -8,6 +8,7 @@ WARNING: this first DELETES all rows in every table, then inserts fresh mock dat
 import json
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from supportpilot.db import Base, get_session
@@ -18,10 +19,23 @@ from supportpilot.models import Ticket
 LABELS_PATH = Path(__file__).resolve().parents[2] / "data" / "labels.jsonl"
 
 
+# Tables that hold reference data, not mock data. Reseeding must leave them alone, or we would
+# throw away the policy embeddings (which cost API calls to rebuild).
+KEEP_TABLES = {"policy_chunks"}
+
+
 def reset_tables(session: Session) -> None:
-    """Delete all rows. Children are deleted before parents because of the foreign keys."""
-    for table in reversed(Base.metadata.sorted_tables):
-        session.execute(table.delete())
+    """Delete all mock rows. Children are deleted before parents because of the foreign keys."""
+    tables = [t for t in reversed(Base.metadata.sorted_tables) if t.name not in KEEP_TABLES]
+    if session.get_bind().dialect.name == "postgresql":
+        # TRUNCATE ... RESTART IDENTITY empties the tables AND restarts the id counters at 1.
+        # A plain DELETE leaves the counters running, so a second seed would start at id 109 and
+        # the ids in data/labels.jsonl would no longer match the database.
+        names = ", ".join(f'"{t.name}"' for t in tables)
+        session.execute(text(f"TRUNCATE {names} RESTART IDENTITY"))
+    else:
+        for table in tables:
+            session.execute(table.delete())
     # The session still remembers the objects it loaded earlier. Forget them, or new rows that
     # reuse the same ids would collide with those stale objects.
     session.expunge_all()
