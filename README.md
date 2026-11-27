@@ -8,7 +8,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 4. Drafts a reply and a proposed refund.
 5. Waits for a human support agent to approve, edit or reject it.
 
-> **Status:** Step 7 done (human approval and guardrails). See [Progress](#progress).
+> **Status:** Steps 0 to 7 done, Step 8 (evaluation) and the review screen built. Deployment pending. See [Progress](#progress).
 
 ## Docs (read these in order)
 
@@ -51,12 +51,18 @@ supportpilot/
     check_retrieval.py script: checks that search finds the right policy for 18 sample queries
     guardrails.py      plain-code rules that cap the AI's suggestion and decide who may approve
     pipeline.py        process_ticket (the AI side) and decide (the human side)
-    main.py            the FastAPI app: queue, process a ticket, approve / edit / reject
+    main.py            the FastAPI app: queue, process a ticket, approve / edit / reject, and the web page
+    static/index.html  the review screen (plain HTML + JavaScript)
+    make_messy.py      script: Gemini rewrites the 100 tickets in 6 messy styles for the eval
+    eval_cases.py      the eval cases (messy + 20 attacks) and their correct answers
+    eval_run.py        script: runs the eval, scores it, writes docs/eval-report.md
   data/labels.jsonl    ground-truth category for each of the 100 tickets
   docs/examples/       a sample agent trace you can read without running anything
   policies/            the 16 company refund and escalation policies (plain markdown)
   tests/               automated tests
-  docs/                flow.md and code-walkthrough.md
+  docs/                flow.md, code-walkthrough.md, eval-report.md
+  Dockerfile           container image for deployment
+  .github/workflows/   CI: ruff and pytest on every push
   .env.example         template for secrets (copy to .env)
   pyproject.toml       dependencies and tool settings
 ```
@@ -85,11 +91,12 @@ uv run python -m supportpilot.run_ticket 2
 # 7. Load the policies and their embeddings into Neon (safe to repeat)
 uv run python -m supportpilot.policies
 
-# 8. Start the server (the API; the web screen comes in Step 9)
+# 8. Start the server (API and review screen)
 uv run uvicorn supportpilot.main:app --reload
 
-# 9. Open http://127.0.0.1:8000/health  -> {"status":"ok"}
-#    Interactive API docs: http://127.0.0.1:8000/docs
+# 9. Open http://127.0.0.1:8000/        -> the review screen
+#    http://127.0.0.1:8000/health      -> {"status":"ok"}
+#    http://127.0.0.1:8000/docs        -> interactive API docs
 ```
 
 Run the tests and the linter:
@@ -124,8 +131,9 @@ With the server running, open http://127.0.0.1:8000/docs for an interactive page
 - [x] Step 5: agent loop with order tools (evidence and draft reply; refund decisions come in Steps 6 and 7)
 - [x] Step 6: policy retrieval (RAG): 16 policies embedded in Neon, searched with pgvector
 - [x] Step 7: human approval and guardrails (AI proposes, code caps it, a human decides, everything is audited)
-- [ ] Step 8: evaluation harness
-- [ ] Step 9: UI and deployment
+- [x] Step 8: evaluation harness (messy and adversarial sets, see [`docs/eval-report.md`](docs/eval-report.md))
+- [x] Step 9a: review screen, Dockerfile, CI
+- [ ] Step 9b: live deployment
 
 ## Git workflow
 

@@ -364,3 +364,45 @@ A proposal can be decided exactly once. Every step writes an audit event with wh
 `open` (just arrived) then `awaiting_approval` (AI proposal ready) then `resolved` (approved or edited), or `manual_handling` (a human rejected the AI's draft).
 
 **Files:** `src/supportpilot/guardrails.py`, `pipeline.py`, `main.py`, `models.py` (`Proposal`, `AuditEvent`), `tests/test_guardrails.py`, `tests/test_pipeline.py`.
+
+## Flow 9: The evaluation run (Step 8)
+
+```mermaid
+flowchart TD
+    A[labels.jsonl: 100 tickets with the true category] --> B[make_messy: Gemini rewrites each in 6 styles]
+    B --> C[fix_order_numbers: replace any invented order number]
+    C --> D[messy_tickets.jsonl]
+    D --> E[eval_cases: attach the expected answer from order facts and policy]
+    F[20 hand-written attacks on real orders] --> E
+    E --> G[eval_run: process_ticket for every case, 4 at a time, rolled back each time]
+    G --> H[eval_results.jsonl: saved after every case, resumable]
+    H --> I[report: docs/eval-report.md]
+```
+
+Key points:
+- The **expected answer never comes from the model.** It is computed from the order data and the policy tables.
+- Each case runs in a database transaction that is **rolled back**, so the eval leaves no data behind.
+- A case that failed because Gemini was down is **run again** next time, not counted as a wrong answer.
+- Metrics: category accuracy, correct decision (exact amount), **unsafe** (too much money), "model asked above the ceiling" (the model was fooled and the guardrail had to step in), escalation rate, cost per ticket.
+
+**Files:** `make_messy.py`, `eval_cases.py`, `eval_run.py`, `tests/test_eval.py`, `data/*.jsonl`, `docs/eval-report.md`.
+
+## Flow 10: The review screen (Step 9)
+
+```mermaid
+sequenceDiagram
+    participant B as Browser (index.html)
+    participant API as FastAPI
+    B->>API: GET /  (the page itself)
+    B->>API: GET /tickets?status=awaiting_approval
+    API-->>B: the queue
+    B->>API: GET /tickets/6
+    API-->>B: ticket + proposal + audit trail
+    B->>API: POST /tickets/6/process  (only if not processed yet)
+    B->>API: POST /proposals/5/decision  (approve / edit / reject)
+    API-->>B: the final proposal, or 403 / 409 / 422 with a reason shown on the page
+```
+
+Everything the server sends is put on the page as plain text (`textContent`), never as HTML, so a hostile ticket cannot run code in a reviewer's browser.
+
+**Files:** `static/index.html`, `main.py` (`GET /`), `tests/test_health.py`.
