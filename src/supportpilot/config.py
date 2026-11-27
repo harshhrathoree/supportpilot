@@ -22,5 +22,10 @@ class Settings(BaseSettings):
     # Set to 0 to disable limiting (for example on a paid plan).
     llm_max_requests_per_minute: int = 12
 
+    # Embeddings turn text into a list of numbers that captures its meaning (used for policy search).
+    # 768 numbers per text. The database column size must match, so changing it means re-embedding.
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dims: int = 768
+
 
 settings = Settings()

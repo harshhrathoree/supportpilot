@@ -2,9 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from supportpilot.config import settings
 from supportpilot.db import Base
 
 
@@ -63,3 +65,21 @@ class Ticket(Base):
     # One of: open, awaiting_approval, resolved
     status: Mapped[str] = mapped_column(String(20), default="open")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PolicyChunk(Base):
+    """One policy document and its embedding. Each policy is short, so one document = one chunk."""
+
+    __tablename__ = "policy_chunks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True)  # file name without .md
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(Text)
+    # Fingerprint of the content. If it hasn't changed we skip re-embedding (saves API calls).
+    content_hash: Mapped[str] = mapped_column(String(64))
+    # pgvector column on Postgres. Tests run on SQLite, which has no vector type, so there it
+    # is stored as a JSON list of numbers instead.
+    embedding: Mapped[list[float]] = mapped_column(
+        Vector(settings.embedding_dims).with_variant(JSON(), "sqlite")
+    )
