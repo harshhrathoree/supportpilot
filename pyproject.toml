@@ -1,0 +1,30 @@
+[project]
+name = "supportpilot"
+version = "0.1.0"
+description = "AI support copilot for a food-delivery company: classify, check order data, apply policy, draft a reply, human approves."
+authors = [
+    { name = "Harsh Rathore", email = "harshrathore2164@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx2",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
