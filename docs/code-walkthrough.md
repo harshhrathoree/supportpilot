@@ -109,3 +109,71 @@ Each class is a table, and each `Mapped[...] = mapped_column(...)` line is a col
 - A **fixture** (`@pytest.fixture def session`) builds a fresh empty database for each test and hands it over. Any test that lists `session` as a parameter receives it automatically.
 - `test_to_driver_url_...` checks the URL prefix swap.
 - `test_ticket_links_to_order_and_items` builds a customer, an order with a missing raita, and a ticket, saves them, reads the ticket back, and checks the link to the unpacked item works. It proves the relationships behave the way the agent will need.
+
+## Step 2: Mock data generator
+
+### Big picture
+We have no real customers, so we invent them. The important rule is that the invented data must be **consistent**: if a ticket says "my order came 40 minutes late", the order record must really show a 40-minute delay. Otherwise the agent could never verify claims, and our accuracy numbers would mean nothing. The code is split in two so each half is easy to test:
+- `mock_data.py` builds everything **in memory** and never touches the database.
+- `seed.py` **saves** it to Neon.
+
+### `src/supportpilot/mock_data.py`
+
+**Constants at the top**
+- `ANCHOR` is a fixed "now" (27 Nov 2026). Using a fixed date instead of the real current time means the data is the same whenever you generate it.
+- `TICKET_MIX` says how many tickets of each category to make (18 late, 18 missing, and so on, 100 total).
+- `MENUS` is six fake restaurants with dishes and prices. `TEMPLATES` is five complaint sentences per category, with `{placeholders}` such as `{item}` and `{restaurant}`.
+
+**`random.Random(seed)`**
+A random number generator that starts from a seed number. The same seed always produces the same "random" numbers, so `generate(42)` returns identical data every time. We pass this `rng` object around instead of using the global `random`, so no hidden state creeps in.
+
+**`make_customer`** builds a random name and a 10-digit phone number starting with 9.
+
+**`make_order`** builds one order, with its items.
+- It picks a restaurant and 2 to 4 dishes from its menu, and a quantity of 1 or 2 for each.
+- `promised_at` is 30 to 45 minutes after `placed_at`.
+- `delivered_at = promised_at + delay`. By default the delay is between -10 (early) and +5 minutes, which counts as on time. The `late_by` argument forces a specific lateness.
+- `drop_item=True` marks one random item `packed=False`.
+- The `*` in the signature means everything after it must be passed by name (`late_by=40`), which stops mistakes like mixing up arguments.
+- We only create the objects here. `Order(customer=customer, ...)` links the order to the customer, which is how the order gets saved later with the customer.
+
+**`make_ticket`** builds one ticket for a category. For each category it builds an order that matches:
+- `late_delivery`: the order arrives 25 to 70 minutes late, and `{mins}` in the text is that same number.
+- `missing_item`: one item is unpacked, and `{item}` in the text is that exact item.
+- `refund_status`: the order is `cancelled`.
+- `payment_issue` / `refund_status`: paid by UPI or card (cash on delivery has nothing to refund).
+- `other`: no order, since questions like "how do I change my phone number" aren't about an order.
+- `template.format(**fields)` fills the placeholders. About 20% of tickets are lower-cased, because real customers often don't capitalise.
+- The `<order>` placeholder stays in the text for now (see `seed.py`).
+
+**`TicketSpec`** is a `@dataclass`, a class that is just a bundle of fields, with `__init__` generated for you. It holds a ticket that isn't saved yet: the customer, the order, the true `category`, and the text. Its `render()` swaps `<order>` for the real order id.
+
+**`generate`** puts it all together:
+1. 50 customers.
+2. 100 tickets, according to `TICKET_MIX` (each creates its own matching order).
+3. A shuffle, so the categories aren't in blocks.
+4. About 300 extra "background" orders with no complaint, up to 500 orders in total, so the agent must find the right order among many.
+
+### `src/supportpilot/seed.py`
+- `reset_tables`: deletes every row from every table. `reversed(Base.metadata.sorted_tables)` deletes children before parents, since a foreign key does not let you delete a customer who still has orders. `session.expunge_all()` tells the session to forget the objects it loaded earlier. Without it, new rows that reuse old ids collide with stale objects, which gave us warnings in the tests.
+- `load`:
+  1. `session.add_all(data.customers)` saves customers, and SQLAlchemy automatically saves their orders and items too, because of the relationships.
+  2. `session.flush()` sends the INSERTs to the database **without committing**. The database assigns ids, and now `order.id` has a value.
+  3. We create each `Ticket` using the real order id, and replace `<order>` in the text.
+  4. It returns the list of labels.
+- `write_labels` writes `data/labels.jsonl`: **JSON Lines**, one JSON object per line. It's easy to read line by line and easy to append to, and is the usual format for eval data.
+- `main` runs it all in one session. The labels file is written only **after** `commit()`, so a failure can't leave you with labels that don't match the database.
+- **Warning:** `seed` deletes existing data. That's fine now, but it must never be pointed at a database with real data.
+
+### `tests/test_mock_data.py`
+Each test checks one promise the generator makes:
+- counts match the plan (50 / 500 / 100, and each category count)
+- the same seed gives the same data, and a different seed differs
+- late tickets have orders at least 25 minutes late, and every other delivered order is on time or at most 5 minutes late
+- missing-item tickets have exactly one unpacked item, and its name appears in the text
+- refund-status orders are cancelled, and `other` tickets have no order
+- `load` saves everything, no `<order>` placeholder is left in any text, and the labels point at real tickets
+- loading twice replaces rather than duplicates
+
+### Honest limitation
+Each category has only five sentence templates, so a classifier will find this set **too easy**, and an accuracy score on it would flatter the system. In Step 8, before we trust any numbers, we will have Gemini write varied and messy tickets (typos, mixed Hindi and English, vague wording) and add them to the eval set.
