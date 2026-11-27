@@ -100,13 +100,14 @@ def test_order_id_is_required(db, world):
     assert "error" in get_order_details(ToolContext(db, world["alice"].id), None)
 
 
-def test_history_counts_orders_and_earlier_tickets_but_not_the_current_one(db, world):
+def test_history_counts_only_tickets_filed_before_the_current_one(db, world):
     alice = world["alice"]
     for _ in range(2):
         db.add(models.Ticket(customer_id=alice.id, text="old"))
     current = models.Ticket(customer_id=alice.id, text="now")
     db.add(current)
     db.add(models.Ticket(customer_id=world["bob"].id, text="not alice"))
+    db.add(models.Ticket(customer_id=alice.id, text="filed later"))  # newer: must not count
     db.flush()
     result = get_customer_history(ToolContext(db, alice.id, ticket_id=current.id))
     assert result == {"total_orders": 1, "previous_tickets": 2}

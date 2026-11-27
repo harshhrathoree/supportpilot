@@ -68,7 +68,8 @@ def get_customer_history(ctx: ToolContext, order_id: int | None = None) -> dict:
     )
     tickets = select(func.count()).select_from(Ticket).where(Ticket.customer_id == ctx.customer_id)
     if ctx.ticket_id is not None:
-        tickets = tickets.where(Ticket.id != ctx.ticket_id)
+        # "Previous" means filed BEFORE this one. Ids only grow, so a lower id is an older ticket.
+        tickets = tickets.where(Ticket.id < ctx.ticket_id)
     return {"total_orders": orders, "previous_tickets": ctx.session.scalar(tickets)}
 
 
@@ -88,7 +89,7 @@ TOOLS: dict[str, ToolSpec] = {
         get_order_details,
     ),
     "get_customer_history": ToolSpec(
-        "How many orders this customer has placed and how many earlier tickets they filed. "
+        "How many orders this customer has placed and how many tickets they filed before this one. "
         "Takes no arguments.",
         get_customer_history,
     ),
