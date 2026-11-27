@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-3.5-flash-lite"
     # Used if llm_model keeps failing after retries (e.g. Google returns 503 "high demand").
     llm_fallback_model: str = "gemini-3.1-flash-lite"
+    # The free tier allows 15 requests/minute per model. Stay a little below it.
+    # Set to 0 to disable limiting (for example on a paid plan).
+    llm_max_requests_per_minute: int = 12
 
 
 settings = Settings()

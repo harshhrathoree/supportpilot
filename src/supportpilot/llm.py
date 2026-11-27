@@ -5,6 +5,9 @@ object plus a record of what the call cost. To use a different provider later, w
 another class with the same method and change one line where the client is created.
 """
 
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
@@ -43,6 +46,35 @@ class LLMError(Exception):
     """Raised when the model could not give us a usable answer."""
 
 
+class RateLimiter:
+    """Spaces calls at least 60/max_per_minute seconds apart, across all threads.
+
+    Google's free tier allows about 15 requests per minute per model. Retrying after a
+    429 is too late, because the limit only resets after a minute. Spacing calls out
+    in advance avoids the error in the first place.
+    """
+
+    def __init__(
+        self,
+        max_per_minute: int,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ):
+        self._interval = 60.0 / max_per_minute if max_per_minute > 0 else 0.0
+        self._clock = clock
+        self._sleep = sleep
+        self._lock = threading.Lock()
+        self._next_allowed = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = self._clock()
+            start = max(now, self._next_allowed)
+            self._next_allowed = start + self._interval
+        if start > now:  # sleep outside the lock so other threads can reserve their slots
+            self._sleep(start - now)
+
+
 class LLMClient(Protocol):
     """What the rest of the app depends on. Any provider that has this method will do."""
 
@@ -67,6 +99,7 @@ class GeminiClient:
         model: str | None = None,
         fallback_model: str | None = None,
         retry_wait_seconds: float = 1.0,
+        max_requests_per_minute: int | None = None,
     ):
         key = api_key or settings.gemini_api_key
         if not key:
@@ -75,6 +108,11 @@ class GeminiClient:
         self.model = model or settings.llm_model
         self.fallback_model = fallback_model or settings.llm_fallback_model
         self._retry_wait = retry_wait_seconds
+        self._limiter = RateLimiter(
+            settings.llm_max_requests_per_minute
+            if max_requests_per_minute is None
+            else max_requests_per_minute
+        )
 
     def generate_structured(self, *, system: str, prompt: str, schema: type[T]) -> tuple[T, Usage]:
         """Ask the model a question and get the answer back as an instance of `schema`.
@@ -99,6 +137,7 @@ class GeminiClient:
             reraise=True,  # after the last attempt, raise the real error instead of a wrapper
         )
         def send() -> types.GenerateContentResponse:
+            self._limiter.wait()  # every attempt, including retries, counts toward the limit
             return self._client.models.generate_content(
                 model=model,
                 contents=prompt,

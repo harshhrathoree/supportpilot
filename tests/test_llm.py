@@ -6,7 +6,7 @@ import pytest
 from google.genai import errors
 from pydantic import BaseModel
 
-from supportpilot.llm import GeminiClient, LLMError, Usage, is_retryable
+from supportpilot.llm import GeminiClient, LLMError, RateLimiter, Usage, is_retryable
 
 
 class Answer(BaseModel):
@@ -40,7 +40,11 @@ class FakeGoogle:
 
 def make_client(script):
     client = GeminiClient(
-        api_key="test", model="main", fallback_model="backup", retry_wait_seconds=0
+        api_key="test",
+        model="main",
+        fallback_model="backup",
+        retry_wait_seconds=0,
+        max_requests_per_minute=0,  # no limiting in tests
     )
     client._client = FakeGoogle(script)
     return client
@@ -107,3 +111,51 @@ def test_cost_is_computed_from_token_counts():
     usage = Usage(model="gemini-3.5-flash-lite", input_tokens=1_000_000, output_tokens=1_000_000)
     assert usage.cost_usd == pytest.approx(0.50)
     assert Usage(model="unknown-model", input_tokens=5, output_tokens=5).cost_usd == 0.0
+
+
+class FakeTime:
+    """A clock we control. sleep() just moves the clock forward, so tests take no real time."""
+
+    def __init__(self):
+        self.now = 1000.0
+        self.sleeps: list[float] = []
+
+    def clock(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def test_rate_limiter_spaces_calls_evenly():
+    t = FakeTime()
+    limiter = RateLimiter(max_per_minute=12, clock=t.clock, sleep=t.sleep)  # 5s apart
+    for _ in range(4):
+        limiter.wait()
+    assert t.sleeps == [pytest.approx(5.0)] * 3  # first call goes at once
+
+
+def test_rate_limiter_does_not_sleep_if_enough_time_already_passed():
+    t = FakeTime()
+    limiter = RateLimiter(max_per_minute=12, clock=t.clock, sleep=t.sleep)
+    limiter.wait()
+    t.now += 30
+    limiter.wait()
+    assert t.sleeps == []
+
+
+def test_rate_limiter_with_zero_is_disabled():
+    t = FakeTime()
+    limiter = RateLimiter(max_per_minute=0, clock=t.clock, sleep=t.sleep)
+    for _ in range(10):
+        limiter.wait()
+    assert t.sleeps == []
+
+
+def test_every_attempt_including_retries_waits_on_the_limiter():
+    client = make_client([api_error(503), ok_response(Answer(label="x"))])
+    waits = []
+    client._limiter = SimpleNamespace(wait=lambda: waits.append(1))
+    client.generate_structured(system="s", prompt="p", schema=Answer)
+    assert len(waits) == 2
