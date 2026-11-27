@@ -296,3 +296,71 @@ sequenceDiagram
 **Why policies go in the database and not in the prompt:** with 16 short policies we could paste them all into every prompt. That works today but costs more tokens per ticket as the policy set grows, and it dilutes the model's attention. Retrieval gives the agent only the 2 to 3 relevant policies. The design also scales to hundreds of policies.
 
 **Files:** `src/supportpilot/embeddings.py`, `policies.py`, `models.py` (the `PolicyChunk` table), `policies/*.md`, `tests/test_policies.py`.
+
+## Flow 8: From ticket to approved decision (Step 7)
+
+This is the main flow of the whole product.
+
+```mermaid
+sequenceDiagram
+    participant H as Human reviewer
+    participant API as FastAPI
+    participant P as pipeline.py
+    participant AI as classifier + agent (Gemini)
+    participant G as guardrails.py
+    participant DB as Neon
+    H->>API: POST /tickets/6/process
+    API->>P: process_ticket
+    P->>AI: classify the ticket
+    P->>DB: search policies (pgvector), top 3
+    P->>AI: agent investigates with tools, reads the policies, suggests action + amount
+    P->>DB: re-read the order itself (does not trust the agent's version)
+    P->>G: apply_guardrails(model suggestion, order facts, history)
+    G-->>P: final action, amount, who must approve, flags
+    P->>DB: save Proposal (pending) + audit event "proposal_created by ai"
+    API-->>H: the proposal
+    H->>API: POST /proposals/5/decision (approve / edit / reject, name, role)
+    API->>P: decide
+    P->>P: role senior enough for the amount? note present on reject?
+    P->>DB: save the decision + audit event with the human's name
+    API-->>H: the final proposal
+```
+
+### What the guardrails do (in order)
+
+```mermaid
+flowchart TD
+    A[Model suggestion] --> B{Agent finished?}
+    B -->|no: step limit, budget, LLM error| E[Escalate: no money, team lead]
+    B -->|yes| C{5 or more earlier tickets?}
+    C -->|yes| E
+    C -->|no| D{Model asked to escalate?}
+    D -->|yes| E
+    D -->|no| F{Wants compensation?}
+    F -->|no| R[Reply only, amount 0]
+    F -->|yes| G{Category is late_delivery or missing_item?}
+    G -->|no: needs photo / payment record / human| E
+    G -->|yes| H{Verdict supported AND data shows something owed?}
+    H -->|no| R
+    H -->|yes| I[Amount = the model's amount, but never above the ceiling computed from the order data]
+    I --> J[Pick the lowest role that may approve that amount]
+```
+
+### The ceiling is computed, not asked
+- **Late delivery:** minutes late (from timestamps) selects 0, 10%, 20% or 50% of the order, each with a cap (Rs 50, 100, 300).
+- **Missing item:** price times quantity of the items the restaurant did not pack.
+- The model's number can only *lower* the result. So "refund me Rs 5000" in a ticket cannot produce more than the policy allows, even if the model believed it.
+
+### Approving
+| Decision | Rule |
+|---|---|
+| approve | the role must be allowed to approve the proposed amount |
+| edit | the role must be allowed to approve the *edited* amount, so a junior cannot edit an amount up past their limit |
+| reject | needs a written note. The ticket goes to `manual_handling` |
+
+A proposal can be decided exactly once. Every step writes an audit event with who, when and what.
+
+### Ticket statuses
+`open` (just arrived) then `awaiting_approval` (AI proposal ready) then `resolved` (approved or edited), or `manual_handling` (a human rejected the AI's draft).
+
+**Files:** `src/supportpilot/guardrails.py`, `pipeline.py`, `main.py`, `models.py` (`Proposal`, `AuditEvent`), `tests/test_guardrails.py`, `tests/test_pipeline.py`.

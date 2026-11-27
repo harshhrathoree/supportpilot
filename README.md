@@ -8,7 +8,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 4. Drafts a reply and a proposed refund.
 5. Waits for a human support agent to approve, edit or reject it.
 
-> **Status:** Step 6 done (policy retrieval). See [Progress](#progress).
+> **Status:** Step 7 done (human approval and guardrails). See [Progress](#progress).
 
 ## Docs (read these in order)
 
@@ -49,7 +49,9 @@ supportpilot/
     embeddings.py      turns text into embeddings (numbers that capture meaning) with Gemini
     policies.py        loads policy files into Neon and searches them by meaning
     check_retrieval.py script: checks that search finds the right policy for 18 sample queries
-    main.py            the FastAPI app and its routes
+    guardrails.py      plain-code rules that cap the AI's suggestion and decide who may approve
+    pipeline.py        process_ticket (the AI side) and decide (the human side)
+    main.py            the FastAPI app: queue, process a ticket, approve / edit / reject
   data/labels.jsonl    ground-truth category for each of the 100 tickets
   docs/examples/       a sample agent trace you can read without running anything
   policies/            the 16 company refund and escalation policies (plain markdown)
@@ -83,7 +85,7 @@ uv run python -m supportpilot.run_ticket 2
 # 7. Load the policies and their embeddings into Neon (safe to repeat)
 uv run python -m supportpilot.policies
 
-# 8. Start the server
+# 8. Start the server (the API; the web screen comes in Step 9)
 uv run uvicorn supportpilot.main:app --reload
 
 # 9. Open http://127.0.0.1:8000/health  -> {"status":"ok"}
@@ -97,6 +99,21 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
 
+## The API (Step 7)
+
+With the server running, open http://127.0.0.1:8000/docs for an interactive page where you can try every endpoint.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /tickets?status=awaiting_approval` | the queue |
+| `GET /tickets/{id}` | one ticket, its AI proposal and its audit history |
+| `POST /tickets/{id}/process` | run the AI on the ticket and create a proposal |
+| `POST /proposals/{id}/decision` | a human approves, edits or rejects |
+
+**Who may approve what** (from `policies/refund-approval-limits.md`): up to Rs 200 a support agent, up to Rs 500 a team lead, above that an operations manager. The AI never pays anything. It proposes, code caps the amount, and a human decides.
+
+**Known limit:** this demo has no login. The reviewer's name and role come from the request and are *not verified*. A real deployment must take them from an authenticated session.
+
 ## Progress
 
 - [x] Step 0: project skeleton, health endpoint, tests
@@ -106,7 +123,7 @@ uv run ruff check . && uv run ruff format --check .
 - [x] Step 4: ticket classifier (100/100 on the first template set; a harder set comes in Step 8)
 - [x] Step 5: agent loop with order tools (evidence and draft reply; refund decisions come in Steps 6 and 7)
 - [x] Step 6: policy retrieval (RAG): 16 policies embedded in Neon, searched with pgvector
-- [ ] Step 7: human approval and guardrails
+- [x] Step 7: human approval and guardrails (AI proposes, code caps it, a human decides, everything is audited)
 - [ ] Step 8: evaluation harness
 - [ ] Step 9: UI and deployment
 
