@@ -363,3 +363,54 @@ A script to run the whole flow on one real ticket: classify, investigate, print 
 - **Four scenarios are a sample, not a test suite.** Step 8 adds a proper evaluation: messy tickets and a set of injection attacks, with scored results.
 - **The injection run finished in one step without checking the order.** That is safe, but it is lazy. The agent skipped a lookup it could have done. The eval will show whether this happens often.
 - **The agent gives evidence, not a decision.** It does not yet know the refund rules. Step 6 adds the policy documents, and Step 7 turns evidence plus policy into a *proposed* refund that a human approves.
+
+## Step 6: Policy retrieval (RAG)
+
+### Big picture
+The agent can now find facts about an order, but it doesn't know the **rules**: how much to refund for a 45-minute delay, or whether a missing item needs a photo. Those rules are the company's refund policies. **RAG** (Retrieval-Augmented Generation) means: *retrieve* the relevant rules first, then give them to the model, so its decision is grounded in real policy instead of its own guess.
+
+### The policy files (`policies/*.md`)
+16 short markdown files, one topic each: late delivery, missing item, food safety, double charge, and so on. Two design choices matter here:
+- **Policies say what the data can and cannot prove.** For example, the double-charge policy says order data has no payment records, so the agent must *not* confirm the double charge. The wrong-item policy says a photo is required. This is what stops the agent from approving refunds it cannot verify.
+- **The AI never issues a refund.** `refund-approval-limits.md` says it only proposes, and says which human role approves which amount.
+All amounts and thresholds here are **made up** for the project. A real company would use its own.
+
+### `src/supportpilot/models.py`: the `PolicyChunk` table
+`slug` (file name), `title`, `content`, `content_hash`, and `embedding`. The embedding column is a pgvector `Vector(768)`, a column type that stores 768 numbers and supports "find the closest" queries inside the database. Tests run on SQLite, which has no vector type, so `.with_variant(JSON(), "sqlite")` stores the numbers as JSON there. Production code and tests use the same model.
+
+### `src/supportpilot/embeddings.py`
+- `Embedder` is a `Protocol`, the same pattern as `LLMClient` in Step 3: the app depends on "something with these two methods", so tests pass in a fake.
+- `GeminiEmbedder.embed_documents` and `embed_query` call Google's embedding model. Documents and questions use **different task types** (`RETRIEVAL_DOCUMENT` and `RETRIEVAL_QUERY`). Google trains the model so that a question and the passage that answers it end up close together, but only when each is labelled correctly.
+- `output_dimensionality=768` asks for 768 numbers. The model can produce more; fewer numbers means a smaller, cheaper database. The column size and this setting must match, which is why both come from `embedding_dims` in `config.py`.
+
+### `src/supportpilot/policies.py`
+- **`read_policy_files`** reads the markdown files. Each must start with `# Title`, or it raises an error. The title becomes the policy's name.
+- **`load_policies`** makes the database match the files:
+  - It computes a **hash** (a short fingerprint) of each file's text. If the fingerprint matches what is stored, the file is unchanged and we skip it. Re-running the loader costs zero API calls.
+  - All changed files are embedded in **one** API call, which also stays inside the rate limit.
+  - Files deleted from the folder are deleted from the database.
+- **`search_policies`** embeds the question, then asks the database for the closest policies:
+  - On Postgres it uses pgvector's `cosine_distance` and `ORDER BY ... LIMIT`, so the database does the ranking.
+  - On SQLite (tests) it computes the same ranking in Python with `cosine_similarity`.
+  - `similarity = 1 - distance`. `top_k` limits the results, and `min_score` drops weak matches.
+
+### `src/supportpilot/check_retrieval.py`
+A script that runs 18 customer-style queries and checks the right policy comes back. Run it after changing the policies or the embedding model.
+
+### Real results
+| Metric | Result |
+|---|---|
+| Correct policy ranked first | 18 of 18 |
+| Correct policy in the top 3 | 18 of 18 |
+| Typical top similarity | 0.65 to 0.79 |
+| Policies loaded | 16, each with 768 numbers |
+| Re-running the loader | 16 unchanged, 0 API calls |
+
+### Honest limitations
+- **18 of 18 is optimistic.** I wrote both the policies and the queries, so the wording overlaps more than real customers' would. The messy-ticket eval in Step 8 is the real test. Expect lower numbers there.
+- **Some queries have close competitors.** For many queries `order-not-delivered` showed up in the top 3 even when it wasn't relevant. We take the top 3, not just the top 1, so a near-miss is still visible to the agent. But it means the agent has to read the retrieved policies critically.
+- **One policy = one chunk.** The policies are short, so splitting them would lose context. With long documents you would split them, and chunk size becomes a setting to tune.
+- **Pure vector search.** It can miss exact terms such as a specific code. A hybrid with keyword search is a common upgrade, not needed at this size.
+
+### Tests (`tests/test_policies.py`)
+`FakeEmbedder` makes a toy embedding by counting how often a few words appear, so search results are predictable. Tests cover: first load adds everything in **one** call, reloading makes **zero** calls, only an edited file is re-embedded, a deleted file is removed, search ranks correctly, `top_k` and `min_score` work, cosine maths, all 16 real files are well formed, and a file with no title is rejected.

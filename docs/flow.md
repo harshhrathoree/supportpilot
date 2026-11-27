@@ -257,3 +257,42 @@ A run that stops early is never lost: the result says why, so a human can pick u
 | The agent makes up facts | The prompt requires evidence from tool results, and the full trace is saved so a reviewer can check each claim. |
 
 **Files:** `src/supportpilot/tools.py`, `agent.py`, `run_ticket.py`, `tests/test_tools.py`, `tests/test_agent.py`. Sample output: `docs/examples/trace_missing_item.jsonl`.
+
+## Flow 7: Policy loading and search (Step 6)
+
+### Loading (run once, and again whenever a policy file changes)
+
+**Trigger:** `uv run python -m supportpilot.policies`
+
+```mermaid
+flowchart TD
+    A[Read every policies/*.md file] --> B[Compute a fingerprint of each file's text]
+    B --> C{Fingerprint same as the one stored in Neon?}
+    C -->|yes| D[Skip: no API call]
+    C -->|no, or a new file| E[Send all changed texts to Gemini in ONE embedding call]
+    E --> F[Save text + 768 numbers in policy_chunks]
+    A --> G{A row in Neon has no file anymore?}
+    G -->|yes| H[Delete the row]
+```
+
+### Searching (used by the agent in Step 7)
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant P as policies.py
+    participant E as Gemini embeddings
+    participant N as Neon pgvector
+    C->>P: search_policies("my raita was not in the bag")
+    P->>E: embed_query(text)
+    E-->>P: 768 numbers
+    P->>N: ORDER BY cosine distance to those numbers LIMIT 3
+    N-->>P: the 3 closest policies
+    P-->>C: title, text and similarity score for each
+```
+
+**What an embedding is:** a list of 768 numbers that represents the *meaning* of a text. Texts with similar meaning get lists that point in nearly the same direction. "The raita was not in the bag" and "Missing item" share almost no words, but their numbers are close, so search finds the policy. Closeness is measured as **cosine similarity**: 1.0 means the same direction and 0 means unrelated.
+
+**Why policies go in the database and not in the prompt:** with 16 short policies we could paste them all into every prompt. That works today but costs more tokens per ticket as the policy set grows, and it dilutes the model's attention. Retrieval gives the agent only the 2 to 3 relevant policies. The design also scales to hundreds of policies.
+
+**Files:** `src/supportpilot/embeddings.py`, `policies.py`, `models.py` (the `PolicyChunk` table), `policies/*.md`, `tests/test_policies.py`.
