@@ -167,3 +167,36 @@ flowchart TD
 - **Usage record:** every call reports the model used, tokens and dollar cost, which Step 8 turns into "cost per ticket".
 
 **Files:** `src/supportpilot/llm.py`, `config.py` (model names), `tests/test_llm.py`.
+
+## Flow 5: Classifying a ticket (Step 4)
+
+**Trigger:** a ticket needs a category. Today that is `classify_labels.py`; from Step 5 on, the agent does it first.
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant K as classifier.py
+    participant L as llm.py
+    participant R as RateLimiter
+    participant G as Gemini
+    C->>K: classify(llm, ticket text)
+    K->>K: strip any <ticket> tags the customer typed, then wrap the text in <ticket> tags
+    K->>L: generate_structured(system prompt, wrapped text, Classification schema)
+    L->>R: wait for the next free slot (one call per 5 s)
+    R-->>L: go
+    L->>G: request (JSON answer required)
+    G-->>L: {"category": ..., "confidence": ..., "priority": ..., "reason": ...}
+    L->>L: validate against the schema (category must be one of 8)
+    L-->>K: Classification + Usage
+    K-->>C: Classification + Usage
+```
+
+**What protects against a malicious ticket**
+1. The customer's text is wrapped in tags, and the prompt says it is data, not instructions.
+2. Tags typed by the customer are removed, so they cannot fake the end of the ticket.
+3. The answer must fit the schema, so the model cannot return a new category or free text.
+4. The classifier only labels. It never moves money. Real protection for refunds comes in Step 7 (human approval).
+
+**Why a rate limiter:** the free tier allows 15 calls per minute per model. The limiter spaces calls 5 seconds apart (12 per minute), so a batch of 100 tickets takes about 8 minutes but never errors.
+
+**Files:** `src/supportpilot/classifier.py`, `llm.py`, `classify_labels.py`, `tests/test_classifier.py`.

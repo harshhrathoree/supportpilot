@@ -8,7 +8,7 @@ An AI support copilot for a food-delivery company. When a customer complains ("m
 4. Drafts a reply and a proposed refund.
 5. Waits for a human support agent to approve, edit or reject it.
 
-> **Status:** Step 3 done (Gemini LLM layer). See [Progress](#progress).
+> **Status:** Step 4 done (ticket classifier). See [Progress](#progress).
 
 ## Docs (read these in order)
 
@@ -40,7 +40,9 @@ supportpilot/
     init_db.py         creates the tables in Neon
     mock_data.py      generates fake customers, orders and labeled tickets
     seed.py            saves the mock data to Neon and writes data/labels.jsonl
-    llm.py             the only file that talks to Gemini: structured output, retries, fallback, cost
+    llm.py             the only file that talks to Gemini: structured output, rate limit, retries, fallback, cost
+    classifier.py      decides the complaint category, confidence and priority of a ticket
+    classify_labels.py script: runs the classifier on all labeled tickets and prints accuracy
     main.py            the FastAPI app and its routes
   data/labels.jsonl    ground-truth category for each of the 100 tickets
   tests/               automated tests
@@ -64,10 +66,13 @@ uv run python -m supportpilot.init_db
 # 4. Fill the database with mock data (WARNING: deletes existing rows first)
 uv run python -m supportpilot.seed
 
-# 5. Start the server
+# 5. (Optional) Classify all 100 tickets and print accuracy. Takes about 8 min on the free tier
+uv run python -m supportpilot.classify_labels
+
+# 6. Start the server
 uv run uvicorn supportpilot.main:app --reload
 
-# 6. Open http://127.0.0.1:8000/health  -> {"status":"ok"}
+# 7. Open http://127.0.0.1:8000/health  -> {"status":"ok"}
 #    Interactive API docs: http://127.0.0.1:8000/docs
 ```
 
@@ -84,7 +89,7 @@ uv run ruff check . && uv run ruff format --check .
 - [x] Step 1: Neon database and schema
 - [x] Step 2: mock data generator
 - [x] Step 3: Gemini provider layer
-- [ ] Step 4: ticket classifier
+- [x] Step 4: ticket classifier (100/100 on the first template set; a harder set comes in Step 8)
 - [ ] Step 5: agent loop with order tools
 - [ ] Step 6: policy retrieval (RAG)
 - [ ] Step 7: human approval and guardrails
