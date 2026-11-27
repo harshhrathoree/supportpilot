@@ -14,5 +14,10 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     database_url: str = ""
 
+    # Model names live here, not in the code, so switching models is a one-line change in .env.
+    llm_model: str = "gemini-3.5-flash-lite"
+    # Used if llm_model keeps failing after retries (e.g. Google returns 503 "high demand").
+    llm_fallback_model: str = "gemini-3.1-flash-lite"
+
 
 settings = Settings()
